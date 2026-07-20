@@ -255,7 +255,7 @@ class ChatExtractorApp:
             messagebox.showerror("错误", "请指定 Word 输出路径")
             return
         if self.enable_docx.get() and not DOCX_AVAILABLE:
-            messagebox.showerror("错误", "生成 Word 需要 python-docx。\npip install python-docx\n安装后请重启程序并选择正确的解释器")
+            messagebox.showerror("错误", "生成 Word 需要 python-docx。\npip install python-docx")
             return
         if self.use_background.get() and not self.bg_image_path.get().strip():
             messagebox.showerror("错误", "已勾选背景图片，但未选择图片。")
@@ -263,7 +263,7 @@ class ChatExtractorApp:
         if self.use_background.get() and not self.enable_docx.get():
             messagebox.showwarning("提示", "背景仅适用于 Word，您未勾选，背景将被忽略。")
         if self.use_background.get() and not WIN32COM_AVAILABLE:
-            messagebox.showerror("错误", "添加背景需要 pywin32。\npip install pywin32\n安装后请重启程序并选择正确的解释器")
+            messagebox.showerror("错误", "添加背景需要 pywin32。\npip install pywin32")
             return
 
         # 读取 JSON
@@ -340,7 +340,6 @@ class ChatExtractorApp:
                 for idx, pair in enumerate(pairs):
                     for line in pair:
                         p = doc.add_paragraph()
-                        # 同时设置左右缩进
                         p.paragraph_format.left_indent = indent
                         p.paragraph_format.right_indent = indent
                         run = p.add_run(line)
@@ -374,11 +373,11 @@ class ChatExtractorApp:
         finally:
             self.convert_btn.config(state=tk.NORMAL)
 
-    # ---------- 使用 win32com 添加背景图片（设置左右边距为0） ----------
+    # ---------- 使用 win32com 添加背景图片（溢出覆盖法） ----------
     def add_background_with_word(self, input_path, output_path, bg_image_path):
         """
-        使用 WPS COM 在每一页的页眉中插入浮动图片，设置绝对位置为页面左上角，
-        同时将整个文档的左右边距设为0，使背景完全覆盖。
+        使用 WPS COM 在每一页的页眉中插入浮动图片，
+        将图片尺寸设得比页面稍大，并略微偏移，使其四周溢出，完全覆盖页面。
         """
         word = None
         doc = None
@@ -387,41 +386,59 @@ class ChatExtractorApp:
             word.Visible = False
             doc = word.Documents.Open(os.path.abspath(input_path))
 
-            # 遍历所有节，设置左右边距为0
+            # 遍历所有节
             for section in doc.Sections:
+                # 设置页面边距为0
                 section.PageSetup.LeftMargin = 0
                 section.PageSetup.RightMargin = 0
+                section.PageSetup.TopMargin = 0
+                section.PageSetup.BottomMargin = 0
+                try:
+                    section.PageSetup.HeaderDistance = 0
+                except:
+                    pass
 
                 # 获取页眉
-                header = section.Headers(1)  # 1 = wdHeaderFooterPrimary
-                # 清空页眉原有内容
+                header = section.Headers(1)
                 header.Range.Delete()
 
-                # 获取页面尺寸
+                # 获取页面尺寸（单位：磅）
                 page_width = section.PageSetup.PageWidth
                 page_height = section.PageSetup.PageHeight
 
-                # 添加浮动图片（Shape），锚定到页眉
+                # 计算溢出量（例如 20 磅）
+                overflow = 20
+                img_width = page_width + overflow
+                img_height = page_height + overflow
+                # 偏移量为负溢出量的一半，使图片居中溢出
+                left_offset = -overflow / 2
+                top_offset = -overflow / 2
+
+                # 添加浮动图片
                 shape = header.Shapes.AddPicture(
                     FileName=os.path.abspath(bg_image_path),
                     LinkToFile=False,
                     SaveWithDocument=True,
-                    Left=0,
-                    Top=0,
-                    Width=page_width,
-                    Height=page_height,
+                    Left=left_offset,
+                    Top=top_offset,
+                    Width=img_width,
+                    Height=img_height,
                     Anchor=header.Range
                 )
 
-                # 设置环绕方式：衬于文字下方 (wdWrapBehind = 3)
-                shape.WrapFormat.Type = 3
+                # 设置环绕方式：衬于文字下方
+                shape.WrapFormat.Type = 3  # wdWrapBehind
 
                 # 设置相对位置：相对于页面
-                shape.RelativeHorizontalPosition = 0  # wdRelativeHorizontalPositionPage
-                shape.RelativeVerticalPosition = 0    # wdRelativeVerticalPositionPage
-                # 确保左/上位置为 0
-                shape.Left = 0
-                shape.Top = 0
+                shape.RelativeHorizontalPosition = 0
+                shape.RelativeVerticalPosition = 0
+
+                # 确保位置为计算值
+                shape.Left = left_offset
+                shape.Top = top_offset
+
+                # 解除锁定纵横比，使图片严格拉伸
+                shape.LockAspectRatio = False
 
             # 保存
             doc.SaveAs(os.path.abspath(output_path))
