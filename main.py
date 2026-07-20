@@ -255,7 +255,7 @@ class ChatExtractorApp:
             messagebox.showerror("错误", "请指定 Word 输出路径")
             return
         if self.enable_docx.get() and not DOCX_AVAILABLE:
-            messagebox.showerror("错误", "生成 Word 需要 python-docx。\npip install python-docx")
+            messagebox.showerror("错误", "生成 Word 需要 python-docx。\npip install python-docx\n安装后请重启程序并选择正确的解释器")
             return
         if self.use_background.get() and not self.bg_image_path.get().strip():
             messagebox.showerror("错误", "已勾选背景图片，但未选择图片。")
@@ -263,7 +263,7 @@ class ChatExtractorApp:
         if self.use_background.get() and not self.enable_docx.get():
             messagebox.showwarning("提示", "背景仅适用于 Word，您未勾选，背景将被忽略。")
         if self.use_background.get() and not WIN32COM_AVAILABLE:
-            messagebox.showerror("错误", "添加背景需要 pywin32。\npip install pywin32")
+            messagebox.showerror("错误", "添加背景需要 pywin32。\npip install pywin32\n安装后请重启程序并选择正确的解释器")
             return
 
         # 读取 JSON
